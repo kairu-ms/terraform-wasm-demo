@@ -38,15 +38,17 @@ class App extends Component {
     LoadWasm().catch((err) => {
       console.error(err);
     });
+    console.log(process.env);
   }
 
   oauth2Login = async () => {
     const { tenantId } = this.state;
-    let result = await Login(tenantId);
+    // let result = await Login(tenantId);
     this.setState({
-      username: result.account.username,
+      // username: result.account.username,
       isAuthenticated: true,
     });
+    this.getResource();
   };
 
   buildTfConfig = () => {
