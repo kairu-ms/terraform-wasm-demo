@@ -25,8 +25,10 @@ function BuildTFCfg(tenantId, subscriptionId, graphToken, mgmtToken) {
   };
 }
 
-async function GetTFResource(resource_id, tfCfg) {
+async function GetTFResource(provider, resource_id, tfCfg) {
+  // TODO: support other providers
   const url = getWasmUrl("azapi.wasm");
+  console.log(provider);
   return await window.terraformImport(
     "azapi",
     url,

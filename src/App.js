@@ -13,6 +13,8 @@ import {
   DialogTitle,
   InputBase,
   LinearProgress,
+  MenuItem,
+  Select,
   TextField,
   Toolbar,
   Typography,
@@ -56,6 +58,14 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
     padding: theme.spacing(1, 1, 1, 0),
     paddingLeft: `calc(1em + ${theme.spacing(4)})`,
     width: "100%",
+  },
+}));
+
+const ProviderSelector = styled(Select)(({ theme }) => ({
+  color: "inherit",
+  backgroundColor: alpha(theme.palette.common.white, 0.15),
+  "&:hover": {
+    backgroundColor: alpha(theme.palette.common.white, 0.25),
   },
 }));
 
@@ -104,6 +114,7 @@ class App extends Component {
       loading: false,
       enable_auth: true,
       code: null,
+      provider: "azapi"
     };
   }
 
@@ -166,9 +177,9 @@ class App extends Component {
     this.setState({
       loading: true,
     });
-    const { resource_id } = this.state;
+    const { provider, resource_id } = this.state;
     const tfCfg = await this.buildTfConfig();
-    const code = await GetTFResource(resource_id, tfCfg);
+    const code = await GetTFResource(provider, resource_id, tfCfg);
     this.setState({
       code: code,
       loading: false,
@@ -188,6 +199,12 @@ class App extends Component {
     });
   };
 
+  changeProvider = (event) => {
+    this.setState({
+      provider: event.target.value,
+    });
+  }
+
   render() {
     const {
       isAuthenticated,
@@ -197,6 +214,7 @@ class App extends Component {
       code,
       loading,
       enable_auth,
+      provider,
     } = this.state;
 
     return (
@@ -224,7 +242,7 @@ class App extends Component {
                   alignItems: "center",
                 }}
               >
-                {isAuthenticated && (
+                {isAuthenticated && (<>
                   <Search
                     sx={{
                       flex: 1,
@@ -245,6 +263,18 @@ class App extends Component {
                       onKeyDown={this.searchKeyDown}
                     />
                   </Search>
+
+                  <ProviderSelector sx={{ width: 160}}
+                    id="provider-selector"                    
+                    value={provider}
+                    label="Provider"
+                    size="small"
+                    onChange={this.changeProvider}
+                  >
+                    <MenuItem value={"azapi"}>AzAPI</MenuItem>
+                    <MenuItem value={"azurerm"}>AzureRM</MenuItem>
+                  </ProviderSelector>
+                </>
                 )}
               </Box>
               <Box
