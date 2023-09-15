@@ -1,5 +1,5 @@
 function getWasmUrl(filename) {
-  const url = "https://terraformwasmdemo.blob.core.windows.net/statics/" + filename;
+  const url = process.env.REACT_APP_AZURE_APP_WASM_URL + "/" + filename;
   return url;
 }
 

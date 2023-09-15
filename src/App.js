@@ -2,8 +2,10 @@ import React, { Component } from "react";
 import "./App.css";
 import {
   AppBar,
+  Backdrop,
   Box,
   Button,
+  CircularProgress,
   Container,
   Dialog,
   DialogActions,
@@ -52,13 +54,8 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   color: "inherit",
   "& .MuiInputBase-input": {
     padding: theme.spacing(1, 1, 1, 0),
-    // vertical padding + font size from searchIcon
     paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-    // transition: theme.transitions.create('width'),
     width: "100%",
-    // [theme.breakpoints.up('md')]: {
-    //   width: '20ch',
-    // },
   },
 }));
 
@@ -105,24 +102,44 @@ class App extends Component {
         : null,
       tf_resource: null,
       loading: false,
+      enable_auth: true,
       code: null,
     };
   }
 
   componentDidMount() {
-    LoadWasm().catch((err) => {
+    this.setState({
+      loading: true,
+    })
+    LoadWasm().then(() => {
+      this.setState({
+        loading: false,
+      })
+    }).catch((err) => {
       console.error(err);
+      this.setState({
+        loading: false,
+      })
     });
-    console.log(process.env);
   }
 
   oauth2Login = async () => {
-    const { tenantId } = this.state;
-    let result = await Login(tenantId);
     this.setState({
-      username: result.account.username,
-      isAuthenticated: true,
+      enable_auth: false,
     });
+    const { tenantId } = this.state;
+    try {
+      let result = await Login(tenantId);
+      this.setState({
+        username: result.account.username,
+        isAuthenticated: true,
+        enable_auth: true,
+      });
+    } catch (err) {
+      this.setState({
+        enable_auth: true,
+      });
+    }
   };
 
   oauth2Logout = async () => {
@@ -151,10 +168,7 @@ class App extends Component {
     });
     const { resource_id } = this.state;
     const tfCfg = await this.buildTfConfig();
-    let resource = await GetTFResource(resource_id, tfCfg);
-    resource = JSON.parse(resource);
-    const code = JSON.stringify(resource, undefined, 4);
-    console.log(code);
+    const code = await GetTFResource(resource_id, tfCfg);
     this.setState({
       code: code,
       loading: false,
@@ -182,6 +196,7 @@ class App extends Component {
       resource_id,
       code,
       loading,
+      enable_auth,
     } = this.state;
 
     return (
@@ -241,7 +256,7 @@ class App extends Component {
                 }}
               >
                 {isAuthenticated && (
-                  <Button color="inherit" onClick={this.logout}>
+                  <Button color="inherit" onClick={this.oauth2Logout}>
                     Logout
                   </Button>
                 )}
@@ -249,37 +264,19 @@ class App extends Component {
             </Toolbar>
           </AppBar>
           <PageContainer>
-            {loading && (
-              <Box
-                sx={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                  Loading...
-                </Typography>
-                {/* <LinearProgress color="info" /> */}
-              </Box>
-            )}
-            {code && (
-              <Editor
-                width="100%"
-                height="100%"
-                language="json"
-                theme="vs-dark"
-                value={code}
-              ></Editor>
-            )}
+            {code && !loading && <Editor
+              width="100%"
+              height="100%"
+              language="HCL"
+              theme="vs-dark"
+              value={code}
+            ></Editor>}
           </PageContainer>
           <Background />
         </div>
 
         <Dialog
-          open={!isAuthenticated}
+          open={!isAuthenticated && !loading}
           maxWidth="md"
           fullWidth={true}
           disableEscapeKeyDown
@@ -324,14 +321,27 @@ class App extends Component {
             />
           </DialogContent>
           <DialogActions>
-            <Button
-              onClick={this.oauth2Login}
-              disabled={!subscriptionId || !tenantId}
-            >
-              Login
-            </Button>
+            {!enable_auth && (
+              <Box sx={{ width: "100%" }}>
+                <LinearProgress color="info" />
+              </Box>
+            )}
+            {enable_auth && (
+              <Button
+                onClick={this.oauth2Login}
+                disabled={!subscriptionId || !tenantId}
+              >
+                Login
+              </Button>
+            )}
           </DialogActions>
         </Dialog>
+        <Backdrop
+          sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+          open={loading}
+        >
+          <CircularProgress color="inherit" />
+        </Backdrop>
       </>
     );
   }
