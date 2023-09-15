@@ -1,17 +1,92 @@
 import React, { Component } from "react";
 import "./App.css";
 import {
+  AppBar,
+  Box,
   Button,
+  Container,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  InputBase,
+  LinearProgress,
   TextField,
+  Toolbar,
+  Typography,
 } from "@mui/material";
 
 import Login from "./oauth";
+import { styled, alpha } from "@mui/material/styles";
+import { LoadWasm, GetTFResource, BuildTFCfg } from "./terraform";
+import SearchIcon from "@mui/icons-material/Search";
+import Editor from "@monaco-editor/react";
 
-import { LoadWasm, RunAzapi } from "./terraform";
+const Search = styled("div")(({ theme }) => ({
+  position: "relative",
+  borderRadius: theme.shape.borderRadius,
+  backgroundColor: alpha(theme.palette.common.white, 0.15),
+  "&:hover": {
+    backgroundColor: alpha(theme.palette.common.white, 0.25),
+  },
+  marginRight: theme.spacing(2),
+  marginLeft: 0,
+  width: "100%",
+  [theme.breakpoints.up("sm")]: {
+    marginLeft: theme.spacing(3),
+    width: "auto",
+  },
+}));
+
+const SearchIconWrapper = styled("div")(({ theme }) => ({
+  padding: theme.spacing(0, 2),
+  height: "100%",
+  position: "absolute",
+  pointerEvents: "none",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+}));
+
+const StyledInputBase = styled(InputBase)(({ theme }) => ({
+  color: "inherit",
+  "& .MuiInputBase-input": {
+    padding: theme.spacing(1, 1, 1, 0),
+    // vertical padding + font size from searchIcon
+    paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+    // transition: theme.transitions.create('width'),
+    width: "100%",
+    // [theme.breakpoints.up('md')]: {
+    //   width: '20ch',
+    // },
+  },
+}));
+
+const PageContainer = styled(Container)(({ theme }) => ({
+  color: theme.palette.common.white,
+  position: "absolute",
+  left: 0,
+  right: 0,
+  top: 64,
+  bottom: 0,
+  marginTop: 12,
+  marginBottom: 12,
+  display: "flex",
+  alignItems: "stretch",
+  flexDirection: "row",
+  justifyContent: "center",
+}));
+
+const Background = styled(Box)({
+  position: "absolute",
+  left: 0,
+  right: 0,
+  top: 0,
+  bottom: 0,
+  backgroundSize: "cover",
+  backgroundRepeat: "no-repeat",
+  zIndex: -2,
+});
 
 class App extends Component {
   constructor(props) {
@@ -25,12 +100,12 @@ class App extends Component {
         ? process.env.REACT_APP_USER_SUBSCRIPTION_ID
         : "",
       username: null,
-      resource_type: process.env.REACT_APP_TEST_RESOURCE_TYPE
-        ? process.env.REACT_APP_TEST_RESOURCE_TYPE
-        : null,
       resource_id: process.env.REACT_APP_TEST_RESOURCE_ID
         ? process.env.REACT_APP_TEST_RESOURCE_ID
         : null,
+      tf_resource: null,
+      loading: false,
+      code: null,
     };
   }
 
@@ -43,48 +118,173 @@ class App extends Component {
 
   oauth2Login = async () => {
     const { tenantId } = this.state;
-    // let result = await Login(tenantId);
+    let result = await Login(tenantId);
     this.setState({
-      // username: result.account.username,
+      username: result.account.username,
       isAuthenticated: true,
     });
-    this.getResource();
   };
 
-  buildTfConfig = () => {
+  oauth2Logout = async () => {
+    this.setState({
+      isAuthenticated: false,
+      username: null,
+      resource_id: null,
+      tf_resource: null,
+    });
+  };
+
+  buildTfConfig = async () => {
     const { tenantId, subscriptionId } = this.state;
-    return {
-      tenant_id: tenantId,
-      subscription_id: subscriptionId,
-      // TODO: use GetToken() to get token instead.
-      client_id: process.env.REACT_APP_USER_CLIENT_ID,
-      client_secret: process.env.REACT_APP_USER_CLIENT_PASSWORD,
-    };
+    const graphToken = await window.GetToken([
+      "https://graph.microsoft.com/.default",
+    ]);
+    const mgmtToken = await window.GetToken([
+      "https://management.azure.com//.default",
+    ]);
+    return BuildTFCfg(tenantId, subscriptionId, graphToken, mgmtToken);
   };
 
   getResource = async () => {
-    const { resource_type, resource_id } = this.state;
-    const tfCfg = this.buildTfConfig();
-    const result = await RunAzapi(resource_type, resource_id, tfCfg);
-    console.log(result);
+    this.setState({
+      loading: true,
+    });
+    const { resource_id } = this.state;
+    const tfCfg = await this.buildTfConfig();
+    let resource = await GetTFResource(resource_id, tfCfg);
+    resource = JSON.parse(resource);
+    const code = JSON.stringify(resource, undefined, 4);
+    console.log(code);
+    this.setState({
+      code: code,
+      loading: false,
+    });
+  };
+
+  searchKeyDown = (event) => {
+    const { loading } = this.state;
+    if (!loading && event.key === "Enter") {
+      this.getResource();
+    }
+  };
+
+  onSearchChange = (event) => {
+    this.setState({
+      resource_id: event.target.value.trim(),
+    });
   };
 
   render() {
-    const { isAuthenticated, tenantId, subscriptionId, username } = this.state;
+    const {
+      isAuthenticated,
+      tenantId,
+      subscriptionId,
+      resource_id,
+      code,
+      loading,
+    } = this.state;
 
     return (
       <>
-        <div className="App">
-          <h1>Terraform</h1>
-          {username && <pre>Hello {username}</pre>}
+        <div>
+          <AppBar component="nav">
+            <Toolbar sx={{ justifyContent: "space-between", height: 64 }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  display: "flex",
+                  justifyContent: "flex-start",
+                  alignItems: "center",
+                }}
+              >
+                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                  Terraform Wasm Demo
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  flex: 3,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                {isAuthenticated && (
+                  <Search
+                    sx={{
+                      flex: 1,
+                      display: "flex",
+                      justifyContent: "flex-start",
+                      alignItems: "center",
+                    }}
+                  >
+                    <SearchIconWrapper>
+                      <SearchIcon />
+                    </SearchIconWrapper>
+                    <StyledInputBase
+                      sx={{ flex: 1 }}
+                      placeholder="Please Input Resource ID"
+                      inputProps={{ "aria-label": "search" }}
+                      value={resource_id ? resource_id : ""}
+                      onChange={this.onSearchChange}
+                      onKeyDown={this.searchKeyDown}
+                    />
+                  </Search>
+                )}
+              </Box>
+              <Box
+                sx={{
+                  flex: 1,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                }}
+              >
+                {isAuthenticated && (
+                  <Button color="inherit" onClick={this.logout}>
+                    Logout
+                  </Button>
+                )}
+              </Box>
+            </Toolbar>
+          </AppBar>
+          <PageContainer>
+            {loading && (
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                  Loading...
+                </Typography>
+                {/* <LinearProgress color="info" /> */}
+              </Box>
+            )}
+            {code && (
+              <Editor
+                width="100%"
+                height="100%"
+                language="json"
+                theme="vs-dark"
+                value={code}
+              ></Editor>
+            )}
+          </PageContainer>
+          <Background />
         </div>
+
         <Dialog
           open={!isAuthenticated}
           maxWidth="md"
           fullWidth={true}
           disableEscapeKeyDown
         >
-          <DialogTitle>Sign In</DialogTitle>
+          <DialogTitle>Auth</DialogTitle>
           <DialogContent
             sx={{
               display: "flex",
@@ -97,7 +297,7 @@ class App extends Component {
               margin="normal"
               id="tenantId"
               required
-              value={tenantId}
+              value={tenantId ? tenantId : ""}
               onChange={(event) => {
                 this.setState({
                   tenantId: event.target.value,
@@ -112,7 +312,7 @@ class App extends Component {
               margin="normal"
               id="subscriptionId"
               required
-              value={subscriptionId}
+              value={subscriptionId ? subscriptionId : ""}
               onChange={(event) => {
                 this.setState({
                   subscriptionId: event.target.value,
@@ -128,7 +328,7 @@ class App extends Component {
               onClick={this.oauth2Login}
               disabled={!subscriptionId || !tenantId}
             >
-              Confirm
+              Login
             </Button>
           </DialogActions>
         </Dialog>

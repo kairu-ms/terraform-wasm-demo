@@ -13,15 +13,27 @@ async function LoadWasm() {
   go.run(result.instance);
 }
 
-async function RunAzapi(resource_type, resource_id, tfCfg) {
+function BuildTFCfg(tenantId, subscriptionId, graphToken, mgmtToken) {
+  return {
+    // tenant_id: tenantId,
+    // subscription_id: subscriptionId,
+    // graph_token: graphToken,
+    // mgmt_token: mgmtToken,
+    
+    use_access_token: true,
+    access_token: mgmtToken,
+  };
+}
+
+async function GetTFResource(resource_id, tfCfg) {
   const url = getWasmUrl("azapi.wasm");
   return await window.terraformImport(
     "azapi",
     url,
-    resource_type,
+    "azapi_resource",
     resource_id,
     JSON.stringify(tfCfg)
   );
 }
 
-export { LoadWasm, RunAzapi };
+export { LoadWasm, GetTFResource, BuildTFCfg };
