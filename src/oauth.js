@@ -62,6 +62,7 @@ async function Login(tenantId) {
   window.msalInstance = null;
   window.GetToken = null;
   const msalConfig = buildMsalConfig(tenantId);
+  console.log(msalConfig);
   const msalInstance =
     await PublicClientApplication.createPublicClientApplication(msalConfig);
   const loginRequest = {
